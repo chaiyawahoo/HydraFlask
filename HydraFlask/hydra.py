@@ -101,6 +101,28 @@ from {self.app_name}.models import *\n\n"
             output += f"    submit = SubmitField()\n\n"
         
         return output
+    
+    def models_string(self):
+        output = f"from {self.app_name} import db\n\
+from sqlalchemy.orm import backref\n\n"
+        first_field = ""
+        for subapp in self.app_structure:
+            resources = self.app_structure[subapp]
+            for resource in resources:
+                output += f"class {resource.capitalize()}(db.Model):\n\
+    id = db.Column(db.Integer, primary_key=True)\n"
+                first_field = resources[resource][0][0]
+                for field in resources[resource]:
+                    output += f"    {field[0]} = db.Column(db."
+                    if field[1] == "string":
+                        output += "String(200))\n"
+                output += f"\n\
+    def __str__(self):\n\
+        return f'<{resource.capitalize()}: {{self.{first_field}}}>'\n\n\
+    def __repr__(self):\n\
+        return f'<{resource.capitalize()}: {{self.{first_field}}}>'\n\n"
+
+        return output
 
     def init_routes(self, subapp, *resources):
         routes_text = autopep8.fix_code(self.routes_string(subapp, *resources))
@@ -121,9 +143,16 @@ from {self.app_name}.models import *\n\n"
             open(os.path.join(self.app_directory, self.app_name, "templates", "base.html"), "w") as t:
             for line in f:
                 t.write(line)
+
+    def init_models(self):
+        models_text = autopep8.fix_code(self.models_string())
+        models_path = os.path.join(self.app_directory, self.app_name, "models.py")
+        with open(models_path, "w") as models_file:
+            models_file.write(models_text)
     
     def run(self):
         self.init_fs()
+        self.init_models()
         for subapp in self.app_structure:
             resources = self.app_structure[subapp]
             self.init_routes(subapp, *resources)
