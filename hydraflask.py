@@ -3,12 +3,37 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("app_directory", metavar="app_directory", type=str)
-parser.add_argument("app_name", metavar="app_name", type=str)
-parser.add_argument("models", metavar="models", type=str, nargs="+")
+parser.add_argument("model_file", type=argparse.FileType("r"))
+# parser.add_argument("app_name", metavar="app_name", type=str)
+# parser.add_argument("models", metavar="models", type=str, nargs="+")
 
 args = parser.parse_args()
 
-hydra = Hydra(args.app_directory, args.app_name)
+model = args.model_file.read()
+words = model.split()
+
+app_structure = {}
+app_name = ""
+
+i = 0
+while i < len(words):
+    if i < len(words) and words[i] == "app":
+        app_name = words[i+1]
+        i += 1
+    while i < len(words) and words[i] == "subapp":
+        subapp_name = words[i+1]
+        app_structure[subapp_name] = {}
+        i += 2
+        while i < len(words) and words[i] == "model":
+            model_name = words[i+1]
+            app_structure[subapp_name][model_name] = []
+            i += 2
+            while i < len(words) and words[i] == "field":
+                app_structure[subapp_name][model_name].append(words[i:i+3])
+                i += 3
+    i += 1
+
+hydra = Hydra(args.app_directory, app_name, app_structure)
 
 if __name__ == "__main__":
     hydra.run()
