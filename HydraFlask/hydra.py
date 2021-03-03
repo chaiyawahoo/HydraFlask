@@ -1,6 +1,27 @@
-from re import sub
 import autopep8
 import os
+
+class FieldType:
+    STRING = 1
+    STR = 1
+    INTEGER = 2
+    INT = 2
+
+    def get_type(type_name):
+        if type_name == "string":
+            return FieldType.STRING
+        elif type_name == "int" or type_name == "integer":
+            return FieldType.INT
+
+class HydraField:
+    def __init__(self, field_name, field_type):
+        self.name = field_name
+        self.type = FieldType.get_type(field_type)
+
+class HydraResource:
+    def __init__(self, name, *fields):
+        self.name = name
+        self.fields = [HydraField(*field) for field in fields]
 
 class Hydra:
     def __init__(self, app_directory, app_name, app_structure):
@@ -31,8 +52,8 @@ class Hydra:
         os.mkdir(self.app_directory)
         create_fs(structure, self.app_directory)
 
-
-    def routes_string(self, subapp, *resources):
+    def hydra_routes_string(self, subapp, **resources):
+        resources = [HydraResource(key, *list(value)) for key, value in resources.items()]
         output = f"from flask import Blueprint, render_template, url_for, redirect, flash\n\
 from {self.app_name}.models import *\n\
 from {self.app_name}.{subapp}.forms import *\n\
@@ -40,66 +61,74 @@ from {self.app_name} import app, db\n\n\
 {subapp} = Blueprint('{subapp}', __name__)\n\n"
 
         for resource in resources:
-            create = f"@{subapp}.route('/{resource}s/create', methods=['GET', 'POST'])\n\
-def create_{resource}():\n\
-    form = {resource.capitalize()}Form()\n\
+            name = resource.name
+            caps = name.capitalize()
+            create = f"@{subapp}.route('/{name}s/create', methods=['GET', 'POST'])\n\
+def create_{name}():\n\
+    form = {caps}Form()\n\
     if form.validate_on_submit():\n\
-        {resource} = {resource.capitalize()}()\n\
+        {name} = {caps}()\n\
         # TODO: create \n\
-        db.session.add({resource})\n\
+        db.session.add({name})\n\
         db.session.commit()\n\
-        flash('{resource.capitalize()} Created.')\n\
-        return redirect(url_for('{subapp}.show_{resource}', {resource}_id={resource}.id))\n\
-    return render_template('create_{resource}.html', form=form)\n\n"
+        flash('{caps} Created.')\n\
+        return redirect(url_for('{subapp}.show_{name}', {name}_id={name}.id))\n\
+    return render_template('create_{name}.html', form=form)\n\n"
 
-            read = f"@{subapp}.route('/{resource}s/<{resource}_id>', methods=['GET'])\n\
-def show_{resource}({resource}_id):\n\
-    {resource} = {resource.capitalize()}.query.get({resource}_id)\n\
-    return render_template('show_{resource}.html', {resource}={resource})\n\n"
+            read = f"@{subapp}.route('/{name}s/<{name}_id>', methods=['GET'])\n\
+def show_{name}({name}_id):\n\
+    {name} = {caps}.query.get({name}_id)\n\
+    return render_template('show_{name}.html', {name}={name})\n\n"
 
-            update = f"@{subapp}.route('/{resource}s/<{resource}_id>/edit', methods=['GET', 'POST'])\n\
-def edit_{resource}({resource}_id):\n\
-    {resource} = {resource.capitalize()}.query.get({resource}_id)\n\
-    form = {resource.capitalize()}Form(obj={resource})\n\
+            update = f"@{subapp}.route('/{name}s/<{name}_id>/edit', methods=['GET', 'POST'])\n\
+def edit_{name}({name}_id):\n\
+    {name} = {caps}.query.get({name}_id)\n\
+    form = {caps}Form(obj={name})\n\
     if form.validate_on_submit():\n\
         # TODO: edit\n\
-        db.session.add({resource})\n\
+        db.session.add({name})\n\
         db.session.commit()\n\
-        flash('{resource.capitalize()} Edited.')\n\
-        return redirect(url_for('{subapp}.show_{resource}', {resource}_id={resource}_id))\n\
-    return render_template('edit_{resource}.html', form=form)\n\n"
+        flash('{caps} Edited.')\n\
+        return redirect(url_for('{subapp}.show_{name}', {name}_id={name}_id))\n\
+    return render_template('edit_{name}.html', form=form)\n\n"
 
-            delete = f"@{subapp}.route('/{resource}s/<{resource}_id>/delete', methods=['GET', 'POST'])\n\
-def delete_{resource}({resource}_id):\n\
-    {resource} = {resource.capitalize()}.query.get({resource}_id)\n\
-    form = Delete{resource.capitalize()}Form()\n\
+            delete = f"@{subapp}.route('/{name}s/<{name}_id>/delete', methods=['GET', 'POST'])\n\
+def delete_{name}({name}_id):\n\
+    {name} = {caps}.query.get({name}_id)\n\
+    form = Delete{caps}Form()\n\
     # TODO: delete form\n\
     if form.validate_on_submit():\n\
-        db.session.delete({resource})\n\
+        db.session.delete({name})\n\
         db.session.commit()\n\
-        flash('{resource.capitalize()} Deleted.')\n\
-        return redirect(url_for('{subapp}.create_{resource}'))\n\
-    return render_template('delete_{resource}.html', form=form)\n\n"
+        flash('{caps} Deleted.')\n\
+        return redirect(url_for('{subapp}.create_{name}'))\n\
+    return render_template('delete_{caps}.html', form=form)\n\n"
 
             output += create + read + update + delete
         return output
-    
+
     def forms_string(self, **resources):
+        resources = [HydraResource(key, *list(value)) for key, value in resources.items()]
         output = f"from flask_wtf import FlaskForm\n\
-from wtforms import StringField, PasswordField, DateField, SelectField, SubmitField, TextAreaField\n\
+from wtforms import StringField, PasswordField, DateField, SelectField, SubmitField, TextAreaField, IntegerField\n\
 from wtforms.ext.sqlalchemy.fields import QuerySelectField, QuerySelectMultipleField\n\
 from wtforms.validators import DataRequired, Length, ValidationError\n\
 from {self.app_name}.models import *\n\n"
 
         for resource in resources:
-            output += f"class {resource.capitalize()}Form(FlaskForm):\n"
-            for field in resources[resource]:
-                output += f"    {field[0]} = "
-                if field[1] == "string":
-                    output += f"StringField('{resource.capitalize()} {field[0].capitalize()}')\n"
-                    pass
+            name = resource.name
+            caps = name.capitalize()
+            output += f"class {caps}Form(FlaskForm):\n"
+            for field in resource.fields:
+                f_name = field.name
+                f_caps = f_name.capitalize()
+                f_type = field.type
+                output += f"    {field.name} = "
+                if f_type == FieldType.STRING:
+                    output += f"StringField('{caps} {f_caps}')\n"
+                elif f_type == FieldType.INT:
+                    output += f"IntegerField('{caps} {f_caps}')\n"
             output += f"    submit = SubmitField()\n\n"
-        
         return output
     
     def models_string(self):
@@ -107,25 +136,31 @@ from {self.app_name}.models import *\n\n"
 from sqlalchemy.orm import backref\n\n"
         first_field = ""
         for subapp in self.app_structure:
-            resources = self.app_structure[subapp]
+            resources = [HydraResource(key, *list(value)) for key, value in self.app_structure[subapp].items()]
             for resource in resources:
-                output += f"class {resource.capitalize()}(db.Model):\n\
+                name = resource.name
+                caps = name.capitalize()
+                output += f"class {caps}(db.Model):\n\
     id = db.Column(db.Integer, primary_key=True)\n"
-                first_field = resources[resource][0][0]
-                for field in resources[resource]:
-                    output += f"    {field[0]} = db.Column(db."
-                    if field[1] == "string":
+                first_field = resource.fields[0].name
+                for field in resource.fields:
+                    f_name = field.name
+                    f_type = field.type
+                    output += f"    {f_name} = db.Column(db."
+                    if f_type == FieldType.STRING:
                         output += "String(200))\n"
+                    elif f_type == FieldType.INT:
+                        output += "Integer)"
                 output += f"\n\
     def __str__(self):\n\
-        return f'<{resource.capitalize()}: {{self.{first_field}}}>'\n\n\
+        return f'<{caps}: {{self.{first_field}}}>'\n\n\
     def __repr__(self):\n\
-        return f'<{resource.capitalize()}: {{self.{first_field}}}>'\n\n"
+        return f'<{caps}: {{self.{first_field}}}>'\n\n"
 
         return output
 
-    def init_routes(self, subapp, *resources):
-        routes_text = autopep8.fix_code(self.routes_string(subapp, *resources))
+    def init_routes(self, subapp, **resources):
+        routes_text = autopep8.fix_code(self.hydra_routes_string(subapp, **resources))
         routes_path = os.path.join(self.app_directory, self.app_name, subapp, "routes.py")
         with open(routes_path, "w") as routes_file:
             routes_file.write(routes_text)
@@ -155,6 +190,6 @@ from sqlalchemy.orm import backref\n\n"
         self.init_models()
         for subapp in self.app_structure:
             resources = self.app_structure[subapp]
-            self.init_routes(subapp, *resources)
+            self.init_routes(subapp, **resources)
             self.init_forms(subapp, **resources)
         self.init_templates()
