@@ -29,7 +29,7 @@ while i < len(words):
             app_structure[subapp_name][model_name] = []
             i += 2
             while i < len(words) and words[i] == "field":
-                app_structure[subapp_name][model_name].append(words[i:i+3])
+                app_structure[subapp_name][model_name].append(words[i+1:i+3])
                 i += 3
     i += 1
 
