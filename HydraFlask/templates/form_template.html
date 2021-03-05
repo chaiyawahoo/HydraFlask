@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}
+[title]
+{% endblock title %}
+
+{% block content %}
+<form action="[url]" method="POST">
+    {{ form.csrf_token }}
+    <fieldset>
+        <legend>[legend]</legend>
+        {% for field in form %}
+        {% if field.type != "CSRFTokenField" %}
+        {{ field.label() }}
+        {{ field() }}
+        {% endif %}
+        {% endfor %}
+    </fieldset>
+</form>
+{% endblock content %}

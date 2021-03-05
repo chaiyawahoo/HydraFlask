@@ -1,6 +1,6 @@
 app songs
 
-subapp main
+blueprint main
 
 model song
 field title string
@@ -10,7 +10,7 @@ model playlist
 field title string
 field description string
 
-subapp auth
+blueprint auth
 
 model user
 field username string

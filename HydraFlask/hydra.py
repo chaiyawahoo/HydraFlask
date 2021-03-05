@@ -23,11 +23,26 @@ class HydraResource:
         self.name = name
         self.fields = [HydraField(*field) for field in fields]
 
+class HydraBlueprint:
+    def __init__(self, name, resources=[]):
+        self.name = name
+        self.resources = self.generate_resources(resources)
+    
+    def generate_resources(self, resources):
+        output = []
+        for resource_name, resource_fields in resources.items():
+            output.append(HydraResource(resource_name, *list(resource_fields)))
+        return output
+
 class Hydra:
     def __init__(self, app_directory, app_name, app_structure):
         self.app_directory = os.path.join(os.getcwd(), app_directory)
         self.app_name = f"{app_name}_app"
         self.app_structure = app_structure
+        self.blueprints = {}
+        for name, resources in self.app_structure.items():
+            blueprint = HydraBlueprint(name, resources)
+            self.blueprints[name] = blueprint
 
     def init_fs(self):
         structure = {}
@@ -52,18 +67,18 @@ class Hydra:
         os.mkdir(self.app_directory)
         create_fs(structure, self.app_directory)
 
-    def hydra_routes_string(self, subapp, **resources):
-        resources = [HydraResource(key, *list(value)) for key, value in resources.items()]
+    def hydra_routes_string(self, bp_name):
+        bp = self.blueprints[bp_name]
         output = f"from flask import Blueprint, render_template, url_for, redirect, flash\n\
 from {self.app_name}.models import *\n\
-from {self.app_name}.{subapp}.forms import *\n\
-from {self.app_name} import app, db\n\n\
-{subapp} = Blueprint('{subapp}', __name__)\n\n"
+from {self.app_name}.{bp_name}.forms import *\n\
+from {self.app_name} import db\n\n\
+{bp_name} = Blueprint('{bp_name}', __name__)\n\n"
 
-        for resource in resources:
+        for resource in bp.resources:
             name = resource.name
             caps = name.capitalize()
-            create = f"@{subapp}.route('/{name}s/create', methods=['GET', 'POST'])\n\
+            create = f"@{bp_name}.route('/{name}s/create', methods=['GET', 'POST'])\n\
 def create_{name}():\n\
     form = {caps}Form()\n\
     if form.validate_on_submit():\n\
@@ -72,15 +87,15 @@ def create_{name}():\n\
         db.session.add({name})\n\
         db.session.commit()\n\
         flash('{caps} Created.')\n\
-        return redirect(url_for('{subapp}.show_{name}', {name}_id={name}.id))\n\
+        return redirect(url_for('{bp_name}.show_{name}', {name}_id={name}.id))\n\
     return render_template('create_{name}.html', form=form)\n\n"
 
-            read = f"@{subapp}.route('/{name}s/<{name}_id>', methods=['GET'])\n\
+            read = f"@{bp_name}.route('/{name}s/<{name}_id>', methods=['GET'])\n\
 def show_{name}({name}_id):\n\
     {name} = {caps}.query.get({name}_id)\n\
     return render_template('show_{name}.html', {name}={name})\n\n"
 
-            update = f"@{subapp}.route('/{name}s/<{name}_id>/edit', methods=['GET', 'POST'])\n\
+            update = f"@{bp_name}.route('/{name}s/<{name}_id>/edit', methods=['GET', 'POST'])\n\
 def edit_{name}({name}_id):\n\
     {name} = {caps}.query.get({name}_id)\n\
     form = {caps}Form(obj={name})\n\
@@ -89,10 +104,10 @@ def edit_{name}({name}_id):\n\
         db.session.add({name})\n\
         db.session.commit()\n\
         flash('{caps} Edited.')\n\
-        return redirect(url_for('{subapp}.show_{name}', {name}_id={name}_id))\n\
+        return redirect(url_for('{bp_name}.show_{name}', {name}_id={name}_id))\n\
     return render_template('edit_{name}.html', form=form)\n\n"
 
-            delete = f"@{subapp}.route('/{name}s/<{name}_id>/delete', methods=['GET', 'POST'])\n\
+            delete = f"@{bp_name}.route('/{name}s/<{name}_id>/delete', methods=['GET', 'POST'])\n\
 def delete_{name}({name}_id):\n\
     {name} = {caps}.query.get({name}_id)\n\
     form = Delete{caps}Form()\n\
@@ -101,14 +116,13 @@ def delete_{name}({name}_id):\n\
         db.session.delete({name})\n\
         db.session.commit()\n\
         flash('{caps} Deleted.')\n\
-        return redirect(url_for('{subapp}.create_{name}'))\n\
+        return redirect(url_for('{bp_name}.create_{name}'))\n\
     return render_template('delete_{caps}.html', form=form)\n\n"
 
             output += create + read + update + delete
         return output
 
-    def forms_string(self, **resources):
-        resources = [HydraResource(key, *list(value)) for key, value in resources.items()]
+    def forms_string(self, resources):
         output = f"from flask_wtf import FlaskForm\n\
 from wtforms import StringField, PasswordField, DateField, SelectField, SubmitField, TextAreaField, IntegerField\n\
 from wtforms.ext.sqlalchemy.fields import QuerySelectField, QuerySelectMultipleField\n\
@@ -132,8 +146,7 @@ from {self.app_name}.models import *\n\n"
         return output
     
     def models_string(self):
-        output = f"from {self.app_name} import db\n\
-from sqlalchemy.orm import backref\n\n"
+        output = f"from {self.app_name} import db\n\n"
         first_field = ""
         for subapp in self.app_structure:
             resources = [HydraResource(key, *list(value)) for key, value in self.app_structure[subapp].items()]
@@ -159,15 +172,15 @@ from sqlalchemy.orm import backref\n\n"
 
         return output
 
-    def init_routes(self, subapp, **resources):
-        routes_text = autopep8.fix_code(self.hydra_routes_string(subapp, **resources))
-        routes_path = os.path.join(self.app_directory, self.app_name, subapp, "routes.py")
+    def init_routes(self, bp_name):
+        routes_text = autopep8.fix_code(self.hydra_routes_string(bp_name))
+        routes_path = os.path.join(self.app_directory, self.app_name, bp_name, "routes.py")
         with open(routes_path, "w") as routes_file:
             routes_file.write(routes_text)
     
-    def init_forms(self, subapp, **resources):
-        forms_text = autopep8.fix_code(self.forms_string(**resources))
-        forms_path = os.path.join(self.app_directory, self.app_name, subapp, "forms.py")
+    def init_forms(self, bp_name):
+        forms_text = autopep8.fix_code(self.forms_string(self.blueprints[bp_name].resources))
+        forms_path = os.path.join(self.app_directory, self.app_name, bp_name, "forms.py")
         with open(forms_path, "w") as forms_file:
             forms_file.write(forms_text)
     
@@ -188,8 +201,7 @@ from sqlalchemy.orm import backref\n\n"
     def run(self):
         self.init_fs()
         self.init_models()
-        for subapp in self.app_structure:
-            resources = self.app_structure[subapp]
-            self.init_routes(subapp, **resources)
-            self.init_forms(subapp, **resources)
         self.init_templates()
+        for blueprint in self.blueprints:
+            self.init_routes(blueprint)
+            self.init_forms(blueprint)

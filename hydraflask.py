@@ -20,16 +20,16 @@ while i < len(words):
     if i < len(words) and words[i] == "app":
         app_name = words[i+1]
         i += 1
-    while i < len(words) and words[i] == "subapp":
-        subapp_name = words[i+1]
-        app_structure[subapp_name] = {}
+    while i < len(words) and words[i] == "blueprint":
+        blueprint_name = words[i+1]
+        app_structure[blueprint_name] = {}
         i += 2
         while i < len(words) and words[i] == "model":
             model_name = words[i+1]
-            app_structure[subapp_name][model_name] = []
+            app_structure[blueprint_name][model_name] = []
             i += 2
             while i < len(words) and words[i] == "field":
-                app_structure[subapp_name][model_name].append(words[i+1:i+3])
+                app_structure[blueprint_name][model_name].append(words[i+1:i+3])
                 i += 3
     i += 1
 
