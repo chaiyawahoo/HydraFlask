@@ -187,7 +187,7 @@ from {self.app_name}.models import *\n\n"
     def init_templates(self):
         current_path, current_file = os.path.split(os.path.realpath(__file__))
         templates_path = os.path.join(current_path, "templates")
-        with open(os.path.join(templates_path, "base_template.html"), "r") as f, \
+        with open(os.path.join(templates_path, "base_template.txt"), "r") as f, \
             open(os.path.join(self.app_directory, self.app_name, "templates", "base.html"), "w") as t:
             for line in f:
                 t.write(line)
