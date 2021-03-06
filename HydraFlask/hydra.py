@@ -1,5 +1,6 @@
 import autopep8
 import os
+import secrets
 
 class FieldType:
     STRING = 1
@@ -50,7 +51,7 @@ class Hydra:
         for app_name in self.app_structure:
             structure[self.app_name][app_name] = {"files": ["__init__.py", "routes.py", "forms.py"]}
         structure[self.app_name]["static"] = {}
-        structure[self.app_name]["templates"] = {"files": ["base.html"]}
+        structure[self.app_name]["templates"] = {"files": ["base.html", "index.html"]}
         structure[self.app_name]["files"] = ["__init__.py", "models.py", "config.py"]
         structure["files"] = ["__init__.py", ".env", ".gitignore", "app.py", "README.md", "requirements.txt"]
 
@@ -74,6 +75,11 @@ from {self.app_name}.models import *\n\
 from {self.app_name}.{bp_name}.forms import *\n\
 from {self.app_name} import db\n\n\
 {bp_name} = Blueprint('{bp_name}', __name__)\n\n"
+
+        if bp_name == list(self.blueprints.keys())[0]:
+            output += f"@{bp_name}.route('/', methods=['GET'])\n\
+def homepage():\n\
+    return render_template('index.html')\n\n"
 
         for resource in bp.resources:
             name = resource.name
@@ -178,8 +184,7 @@ from flask_sqlalchemy import SQLAlchemy\n\
 from {self.app_name}.config import Config\n\
 import os\n\n\
 app = Flask(__name__)\n\
-app.config.from_object(Config)\n\
-app.secret_key = os.urandom(24)\n\n\
+app.config.from_object(Config)\n\n\
 db = SQLAlchemy(app)\n\n"
         
         for blueprint in self.blueprints:
@@ -195,6 +200,10 @@ db = SQLAlchemy(app)\n\n"
 if __name__ == '__main__':\n\
     app.run(debug=True)"
 
+    def env_string(self):
+        return f"SQLALCHEMY_DATABASE_URI=sqlite:///database.db\n\
+SECRET_KEY={secrets.token_bytes(16)}"
+
     def init_routes(self, bp_name):
         routes_text = autopep8.fix_code(self.routes_string(bp_name))
         routes_path = os.path.join(self.app_directory, self.app_name, bp_name, "routes.py")
@@ -208,7 +217,7 @@ if __name__ == '__main__':\n\
             forms_file.write(forms_text)
     
     def init_templates(self):
-        current_path, current_file = os.path.split(os.path.realpath(__file__))
+        current_path, _ = os.path.split(os.path.realpath(__file__))
         templates_path = os.path.join(current_path, "templates")
         with open(os.path.join(templates_path, "base_template.txt"), "r") as f, \
             open(os.path.join(self.app_directory, self.app_name, "templates", "base.html"), "w") as t:
@@ -222,7 +231,7 @@ if __name__ == '__main__':\n\
             models_file.write(models_text)
     
     def init_init(self):
-        init_text = self.init_string() # fixing code will break
+        init_text = autopep8.fix_code(self.init_string(), options={"ignore": ["E402"]}) # fixing code will break
         init_path = os.path.join(self.app_directory, self.app_name, "__init__.py")
         with open(init_path, "w") as init_file:
             init_file.write(init_text)
@@ -232,6 +241,28 @@ if __name__ == '__main__':\n\
         app_path = os.path.join(self.app_directory, "app.py")
         with open(app_path, "w") as app_file:
             app_file.write(app_text)
+        
+    def init_env(self):
+        env_text = self.env_string()
+        env_path = os.path.join(self.app_directory, ".env")
+        with open(env_path, "w") as env_file:
+            env_file.write(env_text)
+    
+    def init_config(self):
+        current_path, _ = os.path.split(os.path.realpath(__file__))
+        templates_path = os.path.join(current_path, "templates")
+        with open(os.path.join(templates_path, "config_template.txt"), "r") as f, \
+            open(os.path.join(self.app_directory, self.app_name, "config.py"), "w") as t:
+            for line in f:
+                t.write(line)
+    
+    def init_requirements(self):
+        current_path, _ = os.path.split(os.path.realpath(__file__))
+        templates_path = os.path.join(current_path, "templates")
+        with open(os.path.join(templates_path, "requirements_template.txt"), "r") as f, \
+            open(os.path.join(self.app_directory, "requirements.txt"), "w") as t:
+            for line in f:
+                t.write(line)
     
     def run(self):
         self.init_fs()
@@ -239,6 +270,9 @@ if __name__ == '__main__':\n\
         self.init_templates()
         self.init_init()
         self.init_app()
+        self.init_env()
+        self.init_config()
+        self.init_requirements()
         for blueprint in self.blueprints:
             self.init_routes(blueprint)
             self.init_forms(blueprint)
