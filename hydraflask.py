@@ -14,6 +14,7 @@ words = model.split()
 
 app_structure = {}
 app_name = ""
+keywords = ["app", "blueprint", "model", "field"]
 
 i = 0
 while i < len(words):
@@ -28,9 +29,14 @@ while i < len(words):
             model_name = words[i+1]
             app_structure[blueprint_name][model_name] = []
             i += 2
+            j = 0
             while i < len(words) and words[i] == "field":
-                app_structure[blueprint_name][model_name].append(words[i+1:i+3])
-                i += 3
+                app_structure[blueprint_name][model_name].append([])
+                i += 1
+                while i < len(words) and words[i] not in keywords:
+                    app_structure[blueprint_name][model_name][j].append(words[i])
+                    i += 1
+                j += 1
     i += 1
 
 hydra = Hydra(args.app_directory, app_name, app_structure)

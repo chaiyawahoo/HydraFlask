@@ -15,9 +15,10 @@ class FieldType:
             return FieldType.INT
 
 class HydraField:
-    def __init__(self, field_name, field_type):
+    def __init__(self, field_name, field_type, *field_args):
         self.name = field_name
         self.type = FieldType.get_type(field_type)
+        self.args = field_args
 
 class HydraResource:
     def __init__(self, name, *fields):
@@ -165,9 +166,12 @@ from {self.app_name}.models import *\n\n"
                 for field in resource.fields:
                     f_name = field.name
                     f_type = field.type
+                    f_args = field.args
                     output += f"    {f_name} = db.Column(db."
                     if f_type == FieldType.STRING:
-                        output += "String(200))\n"
+                        if f_args is not None:
+                            if f_args[0] is not None:
+                                output += f"String({f_args[0]}))\n"
                     elif f_type == FieldType.INT:
                         output += "Integer)"
                 output += f"\n\
