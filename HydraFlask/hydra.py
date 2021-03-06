@@ -67,7 +67,7 @@ class Hydra:
         os.mkdir(self.app_directory)
         create_fs(structure, self.app_directory)
 
-    def hydra_routes_string(self, bp_name):
+    def routes_string(self, bp_name):
         bp = self.blueprints[bp_name]
         output = f"from flask import Blueprint, render_template, url_for, redirect, flash\n\
 from {self.app_name}.models import *\n\
@@ -171,9 +171,32 @@ from {self.app_name}.models import *\n\n"
         return f'<{caps}: {{self.{first_field}}}>'\n\n"
 
         return output
+    
+    def init_string(self):
+        output = f"from flask import Flask\n\
+from flask_sqlalchemy import SQLAlchemy\n\
+from {self.app_name}.config import Config\n\
+import os\n\n\
+app = Flask(__name__)\n\
+app.config.from_object(Config)\n\
+app.secret_key = os.urandom(24)\n\n\
+db = SQLAlchemy(app)\n\n"
+        
+        for blueprint in self.blueprints:
+            output += f"from {self.app_name}.{blueprint}.routes import {blueprint} as {blueprint}_routes\n"
+            output += f"app.register_blueprint({blueprint}_routes)\n\n"
+        
+        output += "with app.app_context():\n    db.create_all()"
+
+        return output
+    
+    def app_string(self):
+        return f"from {self.app_name} import app\n\n\
+if __name__ == '__main__':\n\
+    app.run(debug=True)"
 
     def init_routes(self, bp_name):
-        routes_text = autopep8.fix_code(self.hydra_routes_string(bp_name))
+        routes_text = autopep8.fix_code(self.routes_string(bp_name))
         routes_path = os.path.join(self.app_directory, self.app_name, bp_name, "routes.py")
         with open(routes_path, "w") as routes_file:
             routes_file.write(routes_text)
@@ -198,10 +221,24 @@ from {self.app_name}.models import *\n\n"
         with open(models_path, "w") as models_file:
             models_file.write(models_text)
     
+    def init_init(self):
+        init_text = self.init_string() # fixing code will break
+        init_path = os.path.join(self.app_directory, self.app_name, "__init__.py")
+        with open(init_path, "w") as init_file:
+            init_file.write(init_text)
+    
+    def init_app(self):
+        app_text = autopep8.fix_code(self.app_string())
+        app_path = os.path.join(self.app_directory, "app.py")
+        with open(app_path, "w") as app_file:
+            app_file.write(app_text)
+    
     def run(self):
         self.init_fs()
         self.init_models()
         self.init_templates()
+        self.init_init()
+        self.init_app()
         for blueprint in self.blueprints:
             self.init_routes(blueprint)
             self.init_forms(blueprint)
