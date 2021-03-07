@@ -2,11 +2,19 @@ import autopep8
 import os
 import secrets
 
+def is_int(s):
+    try: 
+        int(s)
+        return True
+    except ValueError:
+        return False
+
 class FieldType:
     STRING = 1
     STR = 1
     INTEGER = 2
     INT = 2
+    DATE = 3
 
     def get_type(type_name):
         if type_name == "string":
@@ -19,6 +27,22 @@ class HydraField:
         self.name = field_name
         self.type = FieldType.get_type(field_type)
         self.args = field_args
+    
+    def build_model(self):
+        output = f"    {self.name} = db.Column("
+        if self.type == FieldType.STRING:
+            if len(self.args) > 0 and is_int(self.args[0]):
+                output += f"db.String({self.args[0]})"
+            else:
+                output += f"db.String(80)"
+        elif self.args == FieldType.INT:
+            output += "db.Integer"
+        if len(self.args) > 0:
+            if "required" in self.args:
+                output += ", nullable=False"
+            if "unique" in self.args:
+                output += ", unique=True"
+        return f"{output})\n"
 
 class HydraResource:
     def __init__(self, name, *fields):
@@ -164,16 +188,7 @@ from {self.app_name}.models import *\n\n"
     id = db.Column(db.Integer, primary_key=True)\n"
                 first_field = resource.fields[0].name
                 for field in resource.fields:
-                    f_name = field.name
-                    f_type = field.type
-                    f_args = field.args
-                    output += f"    {f_name} = db.Column(db."
-                    if f_type == FieldType.STRING:
-                        if f_args is not None:
-                            if f_args[0] is not None:
-                                output += f"String({f_args[0]}))\n"
-                    elif f_type == FieldType.INT:
-                        output += "Integer)"
+                    output += field.build_model()
                 output += f"\n\
     def __str__(self):\n\
         return f'<{caps}: {{self.{first_field}}}>'\n\n\

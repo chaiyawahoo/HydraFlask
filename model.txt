@@ -3,15 +3,15 @@ app songs
 blueprint main
 
 model song
-field title string 80
-field artist string 80
+field title string required
+field artist string required
 
 model playlist
-field title string 80
+field title string required
 field description string 200
 
 blueprint auth
 
 model user
-field username string 80
+field username string required unique
 field password string 200
