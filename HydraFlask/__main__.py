@@ -1,4 +1,4 @@
-from hydraflask import Hydra
+from .hydra import Hydra
 import argparse
 
 argparser = argparse.ArgumentParser()
