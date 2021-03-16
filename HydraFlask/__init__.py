@@ -1,1 +1,1 @@
-from HydraFlask.hydra import Hydra
+from .hydra import Hydra
