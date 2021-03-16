@@ -75,11 +75,11 @@ class HydraField:
                     output += f"db.String({self.args[0]})"
                 else:
                     output += f"db.String(80)"
-            elif self.args == FieldType.INT:
+            elif self.type == FieldType.INT:
                 output += "db.Integer"
-            elif self.args == FieldType.DATE:
+            elif self.type == FieldType.DATE:
                 output += "db.Date"
-            elif self.args == FieldType.DATETIME:
+            elif self.type == FieldType.DATETIME:
                 output += "db.DateTime"
             if len(self.args) > 0:
                 if "required" in self.args:

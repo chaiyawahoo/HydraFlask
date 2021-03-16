@@ -18,4 +18,5 @@ section auth
 model user
 field username string required unique
 field password string 200
+field dt datetime
 relationship one-to-many playlist

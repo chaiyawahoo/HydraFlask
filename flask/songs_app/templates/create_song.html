@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}
+[title]
+{% endblock title %}
+
+{% block content %}
+<form method="POST">
+    {{ form.csrf_token }}
+    <fieldset>
+        <legend>[legend]</legend>
+        {% for field in form %}
+        {% if field.type != "CSRFTokenField" %}
+        {% if field.type != "SubmitField" %}
+        {{ field.label() }}
+        {% endif %}
+        {{ field() }}
+        {% endif %}
+        {% endfor %}
+    </fieldset>
+</form>
+{% endblock content %}
