@@ -5,13 +5,15 @@
 {% endblock title %}
 
 {% block content %}
-<form action="[url]" method="POST">
+<form method="POST">
     {{ form.csrf_token }}
     <fieldset>
         <legend>[legend]</legend>
         {% for field in form %}
         {% if field.type != "CSRFTokenField" %}
+        {% if field.type != "SubmitField" %}
         {{ field.label() }}
+        {% endif %}
         {{ field() }}
         {% endif %}
         {% endfor %}

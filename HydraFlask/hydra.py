@@ -10,46 +10,156 @@ def is_int(s):
         return False
 
 class FieldType:
+    RELATIONSHIP = 0
     STRING = 1
     STR = 1
     INTEGER = 2
     INT = 2
     DATE = 3
+    DATETIME = 4
 
     def get_type(type_name):
         if type_name == "string":
             return FieldType.STRING
         elif type_name == "int" or type_name == "integer":
             return FieldType.INT
+        elif type_name == "date":
+            return FieldType.DATE
+        elif type_name == "datetime":
+            return FieldType.DATETIME
+
+class HydraTable:
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
+        self.name = f"{self.left}s_{self.right}s"
+    
+    def build_table(self):
+        output = f"{self.name} = db.Table('{self.name}',"
+        output += f" db.Column('{self.left}_id', db.Integer, db.ForeignKey('{self.left}.id')), "
+        output += f" db.Column('{self.right}_id', db.Integer, db.ForeignKey('{self.right}.id'))"
+        return f"{output})\n\n"
 
 class HydraField:
-    def __init__(self, field_name, field_type, *field_args):
-        self.name = field_name
-        self.type = FieldType.get_type(field_type)
-        self.args = field_args
+    def __init__(self, resource_name, field_name, field_type, *field_args):
+        if field_name == "one-to-one" or field_name == "many-to-one" or field_name == "one-to-many" or field_name == "many-to-many":
+            self.name = field_type
+            self.type = FieldType.RELATIONSHIP
+            self.args = [field_name]
+        else:
+            self.name = field_name
+            self.type = FieldType.get_type(field_type)
+            self.args = field_args
+        self.resource_name = resource_name
     
     def build_model(self):
-        output = f"    {self.name} = db.Column("
-        if self.type == FieldType.STRING:
-            if len(self.args) > 0 and is_int(self.args[0]):
-                output += f"db.String({self.args[0]})"
-            else:
-                output += f"db.String(80)"
-        elif self.args == FieldType.INT:
-            output += "db.Integer"
-        if len(self.args) > 0:
-            if "required" in self.args:
-                output += ", nullable=False"
-            if "unique" in self.args:
-                output += ", unique=True"
+        output = ""
+        if self.type == FieldType.RELATIONSHIP:
+            if self.args[0] == "one-to-one" or self.args[0] == "many-to-one":
+                output = f"    {self.name}_id = db.Column(db.Integer, db.ForeignKey('{self.name}.id')"
+                if "required" in self.args:
+                    output += ", nullable=False"
+                output += ")\n"
+            if self.args[0] == "one-to-one":
+                output += f"    {self.name} = db.relationship('{self.name.capitalize()}', back_populates='{self.resource_name}'"
+            elif self.args[0] == "one-to-many":
+                output += f"    {self.name}s = db.relationship('{self.name.capitalize()}', back_populates='{self.resource_name}'"
+            elif self.args[0] == "many-to-one":
+                output += f"    {self.name} = db.relationship('{self.name.capitalize()}', back_populates='{self.resource_name}s'"
+            elif self.args[0] == "many-to-many":
+                output += f"    {self.name}s = db.relationship('{self.name.capitalize()}', secondary='{Hydra.flask_tables[self.name]}', back_populates='{self.resource_name}s'"
+        else:
+            output += f"    {self.name} = db.Column("
+            if self.type == FieldType.STRING:
+                if len(self.args) > 0 and is_int(self.args[0]):
+                    output += f"db.String({self.args[0]})"
+                else:
+                    output += f"db.String(80)"
+            elif self.args == FieldType.INT:
+                output += "db.Integer"
+            elif self.args == FieldType.DATE:
+                output += "db.Date"
+            elif self.args == FieldType.DATETIME:
+                output += "db.DateTime"
+            if len(self.args) > 0:
+                if "required" in self.args:
+                    output += ", nullable=False"
+                if "unique" in self.args:
+                    output += ", unique=True"
         return f"{output})\n"
 
 class HydraResource:
-    def __init__(self, name, *fields):
+    def __init__(self, section_name, name, *fields):
         self.name = name
-        self.fields = [HydraField(*field) for field in fields]
+        self.fields = [HydraField(self.name, *field) for field in fields]
+        self.section_name = section_name
+    
+    def create_route_string(self):
+        return f"@{self.section_name}.route('/{self.name}s/create', methods=['GET', 'POST'])\n\
+def create_{self.name}():\n\
+    form = {self.name.capitalize()}Form()\n\
+    if form.validate_on_submit():\n\
+        {self.name} = {self.name.capitalize()}()\n\
+        # TODO: create \n\
+        db.session.add({self.name})\n\
+        db.session.commit()\n\
+        flash('{self.name.capitalize()} Created.')\n\
+        return redirect(url_for('{self.section_name}.show_{self.name}', {self.name}_id={self.name}.id))\n\
+    return render_template('create_{self.name}.html', form=form)\n\n"
 
-class HydraBlueprint:
+    def read_route_string(self):
+        return f"@{self.section_name}.route('/{self.name}s/<{self.name}_id>', methods=['GET'])\n\
+def show_{self.name}({self.name}_id):\n\
+    {self.name} = {self.name.capitalize()}.query.get({self.name}_id)\n\
+    return render_template('show_{self.name}.html', {self.name}={self.name})\n\n"
+
+    def update_route_string(self):
+        return f"@{self.section_name}.route('/{self.name}s/<{self.name}_id>/edit', methods=['GET', 'POST'])\n\
+def edit_{self.name}({self.name}_id):\n\
+    {self.name} = {self.name.capitalize()}.query.get({self.name}_id)\n\
+    form = {self.name.capitalize()}Form(obj={self.name})\n\
+    if form.validate_on_submit():\n\
+        # TODO: edit\n\
+        db.session.add({self.name})\n\
+        db.session.commit()\n\
+        flash('{self.name.capitalize()} Edited.')\n\
+        return redirect(url_for('{self.section_name}.show_{self.name}', {self.name}_id={self.name}_id))\n\
+    return render_template('edit_{self.name}.html', form=form)\n\n"
+
+    def delete_route_string(self):
+        return f"@{self.section_name}.route('/{self.name}s/<{self.name}_id>/delete', methods=['GET', 'POST'])\n\
+def delete_{self.name}({self.name}_id):\n\
+    {self.name} = {self.name.capitalize()}.query.get({self.name}_id)\n\
+    form = Delete{self.name.capitalize()}Form()\n\
+    # TODO: delete form\n\
+    if form.validate_on_submit():\n\
+        db.session.delete({self.name})\n\
+        db.session.commit()\n\
+        flash('{self.name.capitalize()} Deleted.')\n\
+        return redirect(url_for('{self.section_name}.create_{self.name}'))\n\
+    return render_template('delete_{self.name.capitalize()}.html', form=form)\n\n"
+
+    def all_routes_string(self, crud=15):
+        to_crud = "{:0{}b}".format(crud, 4)
+        output = ""
+        if to_crud[0] == "1":
+            output += self.create_route_string()
+        if to_crud[1] == "1":
+            output += self.read_route_string()
+        if to_crud[2] == "1":
+            output += self.update_route_string()
+        if to_crud[3] == "1":
+            output += self.delete_route_string()
+        return output
+    
+    def tables_string(self):
+        output = ""
+        for table in self.tables:
+            output += table.build_table()
+        return output
+
+
+class HydraSection:
     def __init__(self, name, resources=[]):
         self.name = name
         self.resources = self.generate_resources(resources)
@@ -57,18 +167,37 @@ class HydraBlueprint:
     def generate_resources(self, resources):
         output = []
         for resource_name, resource_fields in resources.items():
-            output.append(HydraResource(resource_name, *list(resource_fields)))
+            output.append(HydraResource(self.name, resource_name, *list(resource_fields)))
         return output
 
 class Hydra:
+    flask_tables = {}
     def __init__(self, app_directory, app_name, app_structure):
         self.app_directory = os.path.join(os.getcwd(), app_directory)
         self.app_name = f"{app_name}_app"
         self.app_structure = app_structure
-        self.blueprints = {}
+        self.sections = {}
         for name, resources in self.app_structure.items():
-            blueprint = HydraBlueprint(name, resources)
-            self.blueprints[name] = blueprint
+            section = HydraSection(name, resources)
+            self.sections[name] = section
+        self.tables = self.make_tables()
+        for table in self.tables:
+            Hydra.flask_tables[table.left] = table.name
+            Hydra.flask_tables[table.right] = table.name
+    
+    def make_tables(self):
+        tables = []
+        left_temp = None
+        for _, section in self.sections.items():
+            for resource in section.resources:
+                for field in resource.fields:
+                    if field.type == FieldType.RELATIONSHIP and field.args[0] == "many-to-many":
+                        if left_temp is None:
+                            left_temp = field.name
+                        else:
+                            tables.append(HydraTable(left_temp, field.name))
+                            left_temp = None
+        return tables
 
     def init_fs(self):
         structure = {}
@@ -93,64 +222,20 @@ class Hydra:
         os.mkdir(self.app_directory)
         create_fs(structure, self.app_directory)
 
-    def routes_string(self, bp_name):
-        bp = self.blueprints[bp_name]
+    def routes_string(self, section_name):
+        sec = self.sections[section_name]
         output = f"from flask import Blueprint, render_template, url_for, redirect, flash\n\
 from {self.app_name}.models import *\n\
-from {self.app_name}.{bp_name}.forms import *\n\
+from {self.app_name}.{section_name}.forms import *\n\
 from {self.app_name} import db\n\n\
-{bp_name} = Blueprint('{bp_name}', __name__)\n\n"
+{section_name} = Blueprint('{section_name}', __name__)\n\n"
 
-        if bp_name == list(self.blueprints.keys())[0]:
-            output += f"@{bp_name}.route('/', methods=['GET'])\n\
+        if section_name == list(self.sections.keys())[0]:
+            output += f"@{section_name}.route('/', methods=['GET'])\n\
 def homepage():\n\
     return render_template('index.html')\n\n"
 
-        for resource in bp.resources:
-            name = resource.name
-            caps = name.capitalize()
-            create = f"@{bp_name}.route('/{name}s/create', methods=['GET', 'POST'])\n\
-def create_{name}():\n\
-    form = {caps}Form()\n\
-    if form.validate_on_submit():\n\
-        {name} = {caps}()\n\
-        # TODO: create \n\
-        db.session.add({name})\n\
-        db.session.commit()\n\
-        flash('{caps} Created.')\n\
-        return redirect(url_for('{bp_name}.show_{name}', {name}_id={name}.id))\n\
-    return render_template('create_{name}.html', form=form)\n\n"
-
-            read = f"@{bp_name}.route('/{name}s/<{name}_id>', methods=['GET'])\n\
-def show_{name}({name}_id):\n\
-    {name} = {caps}.query.get({name}_id)\n\
-    return render_template('show_{name}.html', {name}={name})\n\n"
-
-            update = f"@{bp_name}.route('/{name}s/<{name}_id>/edit', methods=['GET', 'POST'])\n\
-def edit_{name}({name}_id):\n\
-    {name} = {caps}.query.get({name}_id)\n\
-    form = {caps}Form(obj={name})\n\
-    if form.validate_on_submit():\n\
-        # TODO: edit\n\
-        db.session.add({name})\n\
-        db.session.commit()\n\
-        flash('{caps} Edited.')\n\
-        return redirect(url_for('{bp_name}.show_{name}', {name}_id={name}_id))\n\
-    return render_template('edit_{name}.html', form=form)\n\n"
-
-            delete = f"@{bp_name}.route('/{name}s/<{name}_id>/delete', methods=['GET', 'POST'])\n\
-def delete_{name}({name}_id):\n\
-    {name} = {caps}.query.get({name}_id)\n\
-    form = Delete{caps}Form()\n\
-    # TODO: delete form\n\
-    if form.validate_on_submit():\n\
-        db.session.delete({name})\n\
-        db.session.commit()\n\
-        flash('{caps} Deleted.')\n\
-        return redirect(url_for('{bp_name}.create_{name}'))\n\
-    return render_template('delete_{caps}.html', form=form)\n\n"
-
-            output += create + read + update + delete
+        output += "".join([resource.all_routes_string() for resource in sec.resources])
         return output
 
     def forms_string(self, resources):
@@ -170,18 +255,17 @@ from {self.app_name}.models import *\n\n"
                 f_type = field.type
                 output += f"    {field.name} = "
                 if f_type == FieldType.STRING:
-                    output += f"StringField('{caps} {f_caps}')\n"
+                    output += f"StringField('{f_caps}')\n"
                 elif f_type == FieldType.INT:
-                    output += f"IntegerField('{caps} {f_caps}')\n"
+                    output += f"IntegerField('{f_caps}')\n"
             output += f"    submit = SubmitField()\n\n"
         return output
     
     def models_string(self):
         output = f"from {self.app_name} import db\n\n"
         first_field = ""
-        for subapp in self.app_structure:
-            resources = [HydraResource(key, *list(value)) for key, value in self.app_structure[subapp].items()]
-            for resource in resources:
+        for _, section in self.sections.items():
+            for resource in section.resources:
                 name = resource.name
                 caps = name.capitalize()
                 output += f"class {caps}(db.Model):\n\
@@ -194,6 +278,8 @@ from {self.app_name}.models import *\n\n"
         return f'<{caps}: {{self.{first_field}}}>'\n\n\
     def __repr__(self):\n\
         return f'<{caps}: {{self.{first_field}}}>'\n\n"
+        for table in self.tables:
+            output += table.build_table()
 
         return output
     
@@ -206,9 +292,9 @@ app = Flask(__name__)\n\
 app.config.from_object(Config)\n\n\
 db = SQLAlchemy(app)\n\n"
         
-        for blueprint in self.blueprints:
-            output += f"from {self.app_name}.{blueprint}.routes import {blueprint} as {blueprint}_routes\n"
-            output += f"app.register_blueprint({blueprint}_routes)\n\n"
+        for section in self.sections:
+            output += f"from {self.app_name}.{section}.routes import {section} as {section}_routes\n"
+            output += f"app.register_blueprint({section}_routes)\n\n"
         
         output += "with app.app_context():\n    db.create_all()"
 
@@ -223,15 +309,15 @@ if __name__ == '__main__':\n\
         return f"SQLALCHEMY_DATABASE_URI=sqlite:///database.db\n\
 SECRET_KEY={secrets.token_bytes(16)}"
 
-    def init_routes(self, bp_name):
-        routes_text = autopep8.fix_code(self.routes_string(bp_name))
-        routes_path = os.path.join(self.app_directory, self.app_name, bp_name, "routes.py")
+    def init_routes(self, section_name):
+        routes_text = autopep8.fix_code(self.routes_string(section_name))
+        routes_path = os.path.join(self.app_directory, self.app_name, section_name, "routes.py")
         with open(routes_path, "w") as routes_file:
             routes_file.write(routes_text)
     
-    def init_forms(self, bp_name):
-        forms_text = autopep8.fix_code(self.forms_string(self.blueprints[bp_name].resources))
-        forms_path = os.path.join(self.app_directory, self.app_name, bp_name, "forms.py")
+    def init_forms(self, section_name):
+        forms_text = autopep8.fix_code(self.forms_string(self.sections[section_name].resources))
+        forms_path = os.path.join(self.app_directory, self.app_name, section_name, "forms.py")
         with open(forms_path, "w") as forms_file:
             forms_file.write(forms_text)
     
@@ -242,6 +328,12 @@ SECRET_KEY={secrets.token_bytes(16)}"
             open(os.path.join(self.app_directory, self.app_name, "templates", "base.html"), "w") as t:
             for line in f:
                 t.write(line)
+        for section in self.sections.values():
+            for resource in section.resources:
+                with open(os.path.join(templates_path, "form_template.txt"), "r") as f, \
+                    open(os.path.join(self.app_directory, self.app_name, "templates", f"create_{resource.name}.html"), "w") as t:
+                    for line in f:
+                        t.write(line)
 
     def init_models(self):
         models_text = autopep8.fix_code(self.models_string())
@@ -292,6 +384,6 @@ SECRET_KEY={secrets.token_bytes(16)}"
         self.init_env()
         self.init_config()
         self.init_requirements()
-        for blueprint in self.blueprints:
-            self.init_routes(blueprint)
-            self.init_forms(blueprint)
+        for section in self.sections:
+            self.init_routes(section)
+            self.init_forms(section)

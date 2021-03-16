@@ -1,17 +1,21 @@
 app songs
 
-blueprint main
+section main
 
 model song
 field title string required
 field artist string required
+relationship many-to-many playlist
 
 model playlist
 field title string required
 field description string 200
+relationship many-to-one user
+relationship many-to-many song
 
-blueprint auth
+section auth
 
 model user
 field username string required unique
 field password string 200
+relationship one-to-many playlist
