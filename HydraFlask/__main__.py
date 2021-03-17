@@ -1,4 +1,5 @@
-from .hydra import Hydra
+from .hydra import Hydra, HydraDefault
+import re
 import argparse
 
 argparser = argparse.ArgumentParser()
@@ -17,27 +18,37 @@ def parse_hydra_model(model_str):
     words = []
     for line in lines:
         if len(line) > 0 and line[0] != "#":
-            words.extend(line.split())
+            words.extend(re.split(r'(\s+)', line))
     i = 0
+    words[:] = [word for word in words if word != ""]
     while i < len(words):
         if i < len(words) and words[i] == "app:":
-            app_name = words[i+1]
-            i += 1
-        while i < len(words) and words[i] == "section:":
-            blueprint_name = words[i+1]
-            app_structure[blueprint_name] = {}
+            app_name = words[i+2]
             i += 2
+        while i < len(words) and words[i] == "section:":
+            blueprint_name = words[i+2]
+            app_structure[blueprint_name] = {}
+            i += 4
             while i < len(words) and words[i] == "model:":
-                model_name = words[i+1]
+                model_name = words[i+2]
                 app_structure[blueprint_name][model_name] = []
-                i += 2
+                i += 4
                 j = 0
                 while i < len(words) and (words[i] == "field:" or words[i] == "relationship:"):
                     app_structure[blueprint_name][model_name].append([])
-                    i += 1
+                    i += 2
+                    default = ""
                     while i < len(words) and words[i] not in keywords:
-                        app_structure[blueprint_name][model_name][j].append(words[i])
-                        i += 1
+                        if words[i][:8] == "default(":
+                            default += words[i][8:]
+                            while i < len(words) and words[i][-1:] != ")":
+                                i += 1
+                                default += words[i]
+                            default = default[:-1]
+                            app_structure[blueprint_name][model_name][j].append(HydraDefault(default))
+                        else:
+                            app_structure[blueprint_name][model_name][j].append(words[i])
+                        i += 2
                     j += 1
         i += 1
 

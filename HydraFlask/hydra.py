@@ -1,7 +1,10 @@
+from collections import defaultdict
 from typing import Text
 import autopep8
 import os
 import secrets
+import distutils
+import datetime
 
 def is_int(s):
     try: 
@@ -48,6 +51,35 @@ class FieldType:
         elif type_name == "datetime":
             return FieldType.DATETIME
 
+class HydraDefault:
+    def __init__(self, value):
+        self.value = value
+    
+    def arg_as_type(self, field_type):
+        if field_type == FieldType.BOOL:
+            return distutils.util.strtobool(self.value)
+        if field_type == FieldType.INT:
+            return int(self.value)
+        if field_type == FieldType.FLOAT:
+            return float(self.value)
+        if field_type == FieldType.STRING or field_type == FieldType.TEXT:
+            return f"'{self.value}'"
+        if field_type == FieldType.UNICODE or field_type == FieldType.UNICODE_TEXT:
+            return self.value.encode("utf-8")
+        if field_type == FieldType.DATE:
+            return datetime.date.strptime(self.value)
+        if field_type == FieldType.TIME:
+            return datetime.time.strptime(self.value)
+        if field_type == FieldType.DATETIME:
+            return datetime.datetime.strptime(self.value)
+            
+    
+    def __str__(self):
+        return self.value
+    
+    def __repr__(self):
+        return self.value
+
 class HydraTable:
     def __init__(self, left, right):
         self.left = left
@@ -75,7 +107,7 @@ class HydraField:
             self.args = field_args
         self.resource_name = resource_name
         if "populate" in self.args:
-            Hydra.flask_populated_fields.append(self.name)
+            Hydra.flask_populated_fields.append((self.name, self.resource_name))
     
     def build_fk(self, name):
         output = f"    {name} = db.Column(db.Integer, db.ForeignKey('{self.name}.id')"
@@ -95,7 +127,7 @@ class HydraField:
         output = ""
         if self.type == FieldType.RELATIONSHIP:
             name, resource, secondary = None, None, None
-            if self.resource_name not in Hydra.flask_populated_fields:
+            if (self.resource_name, self.name) not in Hydra.flask_populated_fields:
                 if self.args[0] == "one-to-one" or self.args[0] == "many-to-one":
                     output += self.build_fk(f"{self.name}_id")
                 elif self.args[0] == "one-to-many":
@@ -114,6 +146,8 @@ class HydraField:
                 resource = f"{self.resource_name}s"
                 secondary = Hydra.flask_tables[self.name]
             output += self.build_relationship(name, resource, secondary)
+            if self.args[0] == "one-to-many" and (self.resource_name, self.name) not in Hydra.flask_populated_fields:
+                output += ", uselist=True"
         else:
             output += f"    {self.name} = db.Column("
             if self.type == FieldType.BOOL:
@@ -143,10 +177,13 @@ class HydraField:
             elif self.type == FieldType.DATETIME:
                 output += "db.DateTime"
             if len(self.args) > 0:
-                if "required" in self.args:
-                    output += ", nullable=False"
-                if "unique" in self.args:
-                    output += ", unique=True"
+                for arg in self.args:
+                    if arg == "required":
+                        output += ", nullable=False"
+                    if arg == "unique":
+                        output += ", unique=True"
+                    if isinstance(arg, HydraDefault):
+                        output += f", default={arg.arg_as_type(self.type)}"
         return f"{output})\n"
 
 class HydraResource:

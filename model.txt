@@ -6,7 +6,7 @@ app: songs
             relationship: many-to-many playlist
 
         model: playlist
-            field: title string required
+            field: title string required default(beast mode)
             field: description string 200
             relationship: many-to-one user populate
             relationship: many-to-many song
@@ -14,6 +14,6 @@ app: songs
     section: auth
         model: user
             field: username string required unique
-            field: password string 200
+            field: password string 200 default()
             field: dt datetime
             relationship: one-to-many playlist populate
