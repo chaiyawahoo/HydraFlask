@@ -1,3 +1,4 @@
+from typing import Text
 import autopep8
 import os
 import secrets
@@ -11,20 +12,39 @@ def is_int(s):
 
 class FieldType:
     RELATIONSHIP = 0
-    STRING = 1
-    STR = 1
+    BOOL = 1
+    BOOLEAN = 1
     INTEGER = 2
     INT = 2
-    DATE = 3
-    DATETIME = 4
+    FLOAT = 3
+    STRING = 4
+    STR = 4
+    TEXT = 5
+    UNICODE = 6
+    UNICODE_TEXT = 7
+    DATE = 8
+    TIME = 9
+    DATETIME = 10
 
     def get_type(type_name):
-        if type_name == "string":
-            return FieldType.STRING
+        if type_name == "bool" or type_name == "boolean":
+            return FieldType.BOOL
         elif type_name == "int" or type_name == "integer":
             return FieldType.INT
+        elif type_name == "float":
+            return FieldType.FLOAT
+        elif type_name == "str" or type_name == "string":
+            return FieldType.STRING
+        elif type_name == "text":
+            return FieldType.TEXT
+        elif type_name == "unicode":
+            return FieldType.UNICODE
+        elif type_name == "unicode-text":
+            return FieldType.UNICODE_TEXT
         elif type_name == "date":
             return FieldType.DATE
+        elif type_name == "time":
+            return FieldType.TIME
         elif type_name == "datetime":
             return FieldType.DATETIME
 
@@ -46,39 +66,80 @@ class HydraField:
             self.name = field_type
             self.type = FieldType.RELATIONSHIP
             self.args = [field_name]
+            self.args.extend(field_args) # populate = back_populates
+            if "many-to-many" in self.args and not "populate" in self.args:
+                self.args.append("populate")
         else:
             self.name = field_name
             self.type = FieldType.get_type(field_type)
             self.args = field_args
         self.resource_name = resource_name
+        if "populate" in self.args:
+            Hydra.flask_populated_fields.append(self.name)
+    
+    def build_fk(self, name):
+        output = f"    {name} = db.Column(db.Integer, db.ForeignKey('{self.name}.id')"
+        if "required" in self.args:
+            output += ", nullable=False"
+        return f"{output})\n"
+    
+    def build_relationship(self, name, resource, secondary):
+        output = f"    {name} = db.relationship('{self.name.capitalize()}'"
+        if secondary is not None:
+            output += f", secondary='{secondary}'"
+        if "populate" in self.args:
+            output += f", back_populates='{resource}'"
+        return output
     
     def build_model(self):
         output = ""
         if self.type == FieldType.RELATIONSHIP:
-            if self.args[0] == "one-to-one" or self.args[0] == "many-to-one":
-                output = f"    {self.name}_id = db.Column(db.Integer, db.ForeignKey('{self.name}.id')"
-                if "required" in self.args:
-                    output += ", nullable=False"
-                output += ")\n"
+            name, resource, secondary = None, None, None
+            if self.resource_name not in Hydra.flask_populated_fields:
+                if self.args[0] == "one-to-one" or self.args[0] == "many-to-one":
+                    output += self.build_fk(f"{self.name}_id")
+                elif self.args[0] == "one-to-many":
+                    output += self.build_fk(f"{self.name}_ids")
             if self.args[0] == "one-to-one":
-                output += f"    {self.name} = db.relationship('{self.name.capitalize()}', back_populates='{self.resource_name}'"
+                name = self.name
+                resource = self.resource_name
             elif self.args[0] == "one-to-many":
-                output += f"    {self.name}s = db.relationship('{self.name.capitalize()}', back_populates='{self.resource_name}'"
+                name = f"{self.name}s"
+                resource = self.resource_name
             elif self.args[0] == "many-to-one":
-                output += f"    {self.name} = db.relationship('{self.name.capitalize()}', back_populates='{self.resource_name}s'"
+                name = self.name
+                resource = f"{self.resource_name}s"
             elif self.args[0] == "many-to-many":
-                output += f"    {self.name}s = db.relationship('{self.name.capitalize()}', secondary='{Hydra.flask_tables[self.name]}', back_populates='{self.resource_name}s'"
+                name = f"{self.name}s"
+                resource = f"{self.resource_name}s"
+                secondary = Hydra.flask_tables[self.name]
+            output += self.build_relationship(name, resource, secondary)
         else:
             output += f"    {self.name} = db.Column("
-            if self.type == FieldType.STRING:
+            if self.type == FieldType.BOOL:
+                output += "db.Boolean"
+            elif self.type == FieldType.INT:
+                output += "db.Integer"
+            elif self.type == FieldType.FLOAT:
+                output += "db.Float"
+            elif self.type == FieldType.STRING:
                 if len(self.args) > 0 and is_int(self.args[0]):
                     output += f"db.String({self.args[0]})"
                 else:
                     output += f"db.String(80)"
-            elif self.type == FieldType.INT:
-                output += "db.Integer"
+            elif self.type == FieldType.TEXT:
+                output += "db.Text"
+            elif self.type == FieldType.UNICODE:
+                if len(self.args) > 0 and is_int(self.args[0]):
+                    output += f"db.Unicode({self.args[0]})"
+                else:
+                    output += f"db.Unicode(80)"
+            elif self.type == FieldType.UNICODE_TEXT:
+                output += "db.UnicodeText"
             elif self.type == FieldType.DATE:
                 output += "db.Date"
+            elif self.type == FieldType.TIME:
+                output += "db.Time"
             elif self.type == FieldType.DATETIME:
                 output += "db.DateTime"
             if len(self.args) > 0:
@@ -172,6 +233,7 @@ class HydraSection:
 
 class Hydra:
     flask_tables = {}
+    flask_populated_fields = []
     def __init__(self, app_directory, app_name, app_structure):
         self.app_directory = os.path.join(os.getcwd(), app_directory)
         self.app_name = f"{app_name}_app"

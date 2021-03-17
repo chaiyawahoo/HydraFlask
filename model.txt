@@ -10,7 +10,7 @@ relationship many-to-many playlist
 model playlist
 field title string required
 field description string 200
-relationship many-to-one user
+relationship many-to-one user populate
 relationship many-to-many song
 
 section auth
@@ -19,4 +19,4 @@ model user
 field username string required unique
 field password string 200
 field dt datetime
-relationship one-to-many playlist
+relationship one-to-many playlist populate
