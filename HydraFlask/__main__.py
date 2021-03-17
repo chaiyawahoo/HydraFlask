@@ -13,45 +13,47 @@ args = argparser.parse_args()
 def parse_hydra_model(model_str):
     app_structure = {}
     app_name = ""
-    keywords = ["app:", "section:", "model:", "field:", "relationship:"]
+    last_section = ""
+    last_model = ""
     lines = model_str.split("\n")
-    words = []
+    lines = [line for line in lines if len(line) > 1]
     for line in lines:
-        if len(line) > 0 and line[0] != "#":
-            words.extend(re.split(r'(\s+)', line))
-    i = 0
-    words[:] = [word for word in words if word != ""]
-    while i < len(words):
-        if i < len(words) and words[i] == "app:":
-            app_name = words[i+2]
-            i += 2
-        while i < len(words) and words[i] == "section:":
-            blueprint_name = words[i+2]
-            app_structure[blueprint_name] = {}
-            i += 4
-            while i < len(words) and words[i] == "model:":
-                model_name = words[i+2]
-                app_structure[blueprint_name][model_name] = []
-                i += 4
-                j = 0
-                while i < len(words) and (words[i] == "field:" or words[i] == "relationship:"):
-                    app_structure[blueprint_name][model_name].append([])
-                    i += 2
-                    default = ""
-                    while i < len(words) and words[i] not in keywords:
-                        if words[i][:8] == "default(":
-                            default += words[i][8:]
-                            while i < len(words) and words[i][-1:] != ")":
-                                i += 1
-                                default += words[i]
-                            default = default[:-1]
-                            app_structure[blueprint_name][model_name][j].append(HydraDefault(default))
-                        else:
-                            app_structure[blueprint_name][model_name][j].append(words[i])
-                        i += 2
-                    j += 1
-        i += 1
-
+        words_list = re.split(r"(\s+)", line)
+        word_index = 0
+        while word_index < len(words_list):
+            while word_index < len(words_list) and len(words_list[word_index].split()) == 0:
+                word_index += 1
+            words_list = words_list[word_index:]
+            if len(words_list[word_index].split()) > 0:
+                break
+            word_index += 1
+        if words_list[0] != "field:" and words_list[0] != "relationship:":
+            words_list = [word for word in words_list if len(word.strip()) > 0]
+        second_word = words_list[1]
+        if words_list[0] == "app:":
+            app_name = second_word
+        elif words_list[0] == "section:":
+            last_section = second_word
+            app_structure[last_section] = {}
+        elif words_list[0] == "model:":
+            last_model = second_word
+            app_structure[last_section][last_model] = {}
+        elif words_list[0] == "field:" or words_list[0] == "relationship:":
+            field_name = words_list[2]
+            word_index = 4
+            app_structure[last_section][last_model][field_name] = []
+            while word_index < len(words_list):
+                default = ""
+                if words_list[word_index][:8] == "default(":
+                    default += words_list[word_index][8:]
+                    while words_list[word_index][-1:] != ")":
+                        word_index += 1
+                        default += words_list[word_index]
+                    default = default[:-1]
+                    app_structure[last_section][last_model][field_name].append(HydraDefault(default))
+                elif len(words_list[word_index].split()) > 0:
+                    app_structure[last_section][last_model][field_name].append(words_list[word_index])
+                word_index += 1
     return Hydra(args.app_directory, app_name, app_structure)
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 from collections import defaultdict
+import re
 from typing import Text
 import autopep8
 import os
@@ -75,10 +76,10 @@ class HydraDefault:
             
     
     def __str__(self):
-        return self.value
+        return f"<HydraDefault: '{self.value}'>"
     
     def __repr__(self):
-        return self.value
+        return f"<HydraDefault: '{self.value}'>"
 
 class HydraTable:
     def __init__(self, left, right):
@@ -187,9 +188,9 @@ class HydraField:
         return f"{output})\n"
 
 class HydraResource:
-    def __init__(self, section_name, name, *fields):
+    def __init__(self, section_name, name, fields):
         self.name = name
-        self.fields = [HydraField(self.name, *field) for field in fields]
+        self.fields = [HydraField(self.name, field_name, *list(field_args)) for field_name, field_args in fields.items()]
         self.section_name = section_name
     
     def create_route_string(self):
@@ -265,7 +266,7 @@ class HydraSection:
     def generate_resources(self, resources):
         output = []
         for resource_name, resource_fields in resources.items():
-            output.append(HydraResource(self.name, resource_name, *list(resource_fields)))
+            output.append(HydraResource(self.name, resource_name, resource_fields))
         return output
 
 class Hydra:

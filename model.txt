@@ -1,5 +1,5 @@
 app: songs
-    section: main
+    section: main with space
         model: song
             field: title string required
             field: artist string required
@@ -15,5 +15,5 @@ app: songs
         model: user
             field: username string required unique
             field: password string 200 default()
-            field: dt datetime
+            field: created datetime
             relationship: one-to-many playlist populate
