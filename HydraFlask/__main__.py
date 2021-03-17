@@ -12,7 +12,7 @@ args = argparser.parse_args()
 def parse_hydra_model(model_str):
     app_structure = {}
     app_name = ""
-    keywords = ["app", "section", "model", "field", "relationship"]
+    keywords = ["app:", "section:", "model:", "field:", "relationship:"]
     lines = model_str.split("\n")
     words = []
     for line in lines:
@@ -20,19 +20,19 @@ def parse_hydra_model(model_str):
             words.extend(line.split())
     i = 0
     while i < len(words):
-        if i < len(words) and words[i] == "app":
+        if i < len(words) and words[i] == "app:":
             app_name = words[i+1]
             i += 1
-        while i < len(words) and words[i] == "section":
+        while i < len(words) and words[i] == "section:":
             blueprint_name = words[i+1]
             app_structure[blueprint_name] = {}
             i += 2
-            while i < len(words) and words[i] == "model":
+            while i < len(words) and words[i] == "model:":
                 model_name = words[i+1]
                 app_structure[blueprint_name][model_name] = []
                 i += 2
                 j = 0
-                while i < len(words) and (words[i] == "field" or words[i] == "relationship"):
+                while i < len(words) and (words[i] == "field:" or words[i] == "relationship:"):
                     app_structure[blueprint_name][model_name].append([])
                     i += 1
                     while i < len(words) and words[i] not in keywords:

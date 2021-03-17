@@ -1,23 +1,19 @@
-app songs
+app: songs
+    section: main
+        model: song
+            field: title string required
+            field: artist string required
+            relationship: many-to-many playlist
 
-section main
+        model: playlist
+            field: title string required
+            field: description string 200
+            relationship: many-to-one user populate
+            relationship: many-to-many song
 
-model song
-field title string required
-field artist string required
-relationship many-to-many playlist
-
-model playlist
-field title string required
-field description string 200
-relationship many-to-one user populate
-relationship many-to-many song
-# field usuck bool
-
-section auth
-
-model user
-field username string required unique
-field password string 200
-field dt datetime
-relationship one-to-many playlist populate
+    section: auth
+        model: user
+            field: username string required unique
+            field: password string 200
+            field: dt datetime
+            relationship: one-to-many playlist populate
