@@ -12,6 +12,7 @@ field title string required
 field description string 200
 relationship many-to-one user populate
 relationship many-to-many song
+# field usuck bool
 
 section auth
 

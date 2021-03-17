@@ -13,7 +13,11 @@ def parse_hydra_model(model_str):
     app_structure = {}
     app_name = ""
     keywords = ["app", "section", "model", "field", "relationship"]
-    words = model_str.split()
+    lines = model_str.split("\n")
+    words = []
+    for line in lines:
+        if len(line) > 0 and line[0] != "#":
+            words.extend(line.split())
     i = 0
     while i < len(words):
         if i < len(words) and words[i] == "app":
